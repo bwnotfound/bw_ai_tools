@@ -85,6 +85,7 @@ class BaseTrainer:
                     t_bar.update()
                 if save_dir is not None and self.iter_cnt % save_iter == 0:
                     self.save_model(save_dir, save_scheduler=show_scheduler)
+                    self.save_step()
                 if show_scheduler and self.iter_cnt % schedule_step_size == 0:
                     self.scheduler_step()
                 if skip_iter is not None and self.iter_cnt % skip_iter == 0:
@@ -119,6 +120,9 @@ class BaseTrainer:
         self.scheduler.step()
 
     def epoch_step(self):
+        pass
+    
+    def save_step(self):
         pass
 
     def data_preprocess(self, packs):

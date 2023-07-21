@@ -18,6 +18,8 @@ class WGAN_Trainer(BaseTrainer):
         use_gp=True,
         lambda_gp=10,
         critic_iter=5,
+        save_step_func=None,
+        show_time_consume=False,
         **kwargs
     ):
         self.clip_value = clip_value
@@ -26,6 +28,7 @@ class WGAN_Trainer(BaseTrainer):
         self.lambda_gp = lambda_gp
         self.g_loss = torch.zeros(1)
         self.d_loss = torch.zeros(1)
+        self.save_step_func = save_step_func
 
         if g_scheduler is None or d_scheduler is None:
             w_scheduler = None
@@ -112,6 +115,10 @@ class WGAN_Trainer(BaseTrainer):
                 {k: v.state_dict() for k, v in self.scheduler.items()},
                 save_dir + "/scheduler.pth",
             )
+            
+    def save_step(self):
+        if self.save_step_func is not None:
+            self.save_step_func()
 
     def load_model(self, save_dir, load_scheduler=False):
         model = torch.load(save_dir + "/model.pth")
