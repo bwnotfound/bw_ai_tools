@@ -18,11 +18,11 @@ class G_simple(nn.Module):
         self.model = nn.ModuleList()
         num_layers = int(math.log2(img_size)) - 2
         iter_dim = filter_dim * 2**num_layers
-        cur_dim = max(iter_dim, 512)
+        cur_dim = min(iter_dim, 512)
         self.model.append(
             nn.Sequential(
-                PReLU_ConvTranspose2d(z_dim, cur_dim, 4, 1, 0),
-                nn.InstanceNorm2d(cur_dim),
+                PReLU_ConvTranspose2d(z_dim, cur_dim, 4, 1, 0, bias=False),
+                nn.BatchNorm2d(cur_dim),
                 nn.PReLU(cur_dim),
             )
         )
@@ -31,27 +31,23 @@ class G_simple(nn.Module):
             next_dim = cur_dim // 2 if iter_dim == cur_dim else cur_dim
             self.model.append(
                 nn.Sequential(
-                    PReLU_ConvTranspose2d(cur_dim, next_dim, 4, 2, 1),
-                    nn.InstanceNorm2d(next_dim),
+                    PReLU_ConvTranspose2d(cur_dim, next_dim, 4, 2, 1, bias=False),
+                    nn.BatchNorm2d(next_dim),
                     nn.PReLU(next_dim),
                 )
             )
-            self.model.append(
-                BaseResLayer(
-                    [
-                        nn.Identity(),
-                        nn.Sequential(
-                            PReLU_Conv2d(next_dim, next_dim, 3, 1, 1),
-                            nn.InstanceNorm2d(next_dim),
-                        ),
-                    ]
-                )
-            )
-            self.model.append(nn.PReLU(next_dim))
             iter_dim = iter_dim // 2
             cur_dim = next_dim
-        self.model.append(PReLU_Conv2d(filter_dim, color_channels, 3, 1, 1))
-        self.model.append(nn.Sigmoid())
+        self.model.append(PReLU_Conv2d(filter_dim, color_channels, 3, 1, 1, bias=False))
+        
+        class Wrap(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.tanh=nn.Tanh()
+            def forward(self, x):
+                return (self.tanh(x) + 1) / 2
+        # self.model.append(nn.Sigmoid())
+        self.model.append(Wrap())
 
         self.model = nn.Sequential(*self.model)
 

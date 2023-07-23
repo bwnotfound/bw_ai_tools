@@ -27,7 +27,7 @@ class D_simple(nn.Module):
         self.model.append(
             nn.Sequential(
                 PReLU_Conv2d(color_channels, cur_dim, 3, 2, 1),
-                nn.InstanceNorm2d(cur_dim),
+                nn.BatchNorm2d(cur_dim),
             )
         )
 
@@ -39,13 +39,9 @@ class D_simple(nn.Module):
             next_dim = cur_dim * 2 if cur_dim < 512 else cur_dim
             self.model.append(
                 nn.Sequential(
-                    PReLU_Conv2d(cur_dim, next_dim, 3, 1, 1),
-                    nn.InstanceNorm2d(next_dim),
+                    PReLU_Conv2d(cur_dim, next_dim, 5, 2, 2),
+                    nn.BatchNorm2d(next_dim),
                     nn.PReLU(next_dim),
-                    PReLU_Conv2d(next_dim, next_dim, 3, 1, 1),
-                    nn.InstanceNorm2d(next_dim),
-                    nn.PReLU(next_dim),
-                    nn.MaxPool2d(2, 2),
                 )
             )
             cur_dim = next_dim
@@ -57,7 +53,14 @@ class D_simple(nn.Module):
                 PReLU_Linear(cur_dim, ffn_dim),
                 nn.PReLU(ffn_dim),
                 nn.Dropout(dropout),
-                PReLU_Linear(ffn_dim, ffn_dim),
+                BaseResLayer(
+                    [
+                        nn.Identity(),
+                        nn.Sequential(
+                            PReLU_Linear(ffn_dim, ffn_dim),
+                        ),
+                    ]
+                ),
                 nn.PReLU(ffn_dim),
                 nn.Dropout(dropout),
                 PReLU_Linear(ffn_dim, 1),
