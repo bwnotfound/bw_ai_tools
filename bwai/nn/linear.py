@@ -8,6 +8,6 @@ class PReLU_Linear(nn.Linear):
     """
     def __init__(self, *args, a=0.25, **kwargs):
         super().__init__(*args, **kwargs)
-        init.prelu_normal_(self.weight, a=a)
+        init.he_normal_(self.weight, a=a)
         if self.bias is not None:
             nn.init.zeros_(self.bias)

@@ -1,7 +1,7 @@
 import torch.nn as nn
-import math
-from .resnet import BaseResLayer as ResLayer
+from .resnet import BaseResLayer
 from ..nn.conv import PReLU_Conv2d
+from ..nn.linear import PReLU_Linear
 
 
 class D_simple(nn.Module):
@@ -9,9 +9,16 @@ class D_simple(nn.Module):
     img_size should be the integer power of 2 and larger than 8
     """
 
-    def __init__(self, img_size, color_channels, filter_dim):
+    def __init__(
+        self,
+        img_size,
+        color_channels,
+        filter_dim,
+        min_size=5,
+        ffn_dim=512,
+        dropout=0.1,
+    ):
         super().__init__()
-        assert math.log2(img_size) - int(math.log2(img_size)) == 0
         self.img_size = img_size
         self.color_channels = color_channels
         self.filter_dim = filter_dim
@@ -19,25 +26,41 @@ class D_simple(nn.Module):
         cur_dim = filter_dim
         self.model.append(
             nn.Sequential(
-                PReLU_Conv2d(color_channels, cur_dim, 4, 2, 1),
-                nn.PReLU(cur_dim),
+                PReLU_Conv2d(color_channels, cur_dim, 3, 2, 1),
+                nn.InstanceNorm2d(cur_dim),
             )
         )
-        num_layers = int(math.log2(img_size)) - 3
-        for _ in range(num_layers):
-            next_dim = cur_dim * 2
+
+        def div(size):
+            return size // 2 + size % 2
+
+        cur_size = div(img_size)
+        while cur_size > min_size:
+            next_dim = cur_dim * 2 if cur_dim < 512 else cur_dim
             self.model.append(
                 nn.Sequential(
-                    PReLU_Conv2d(cur_dim, next_dim, 4, 2, 1),
+                    PReLU_Conv2d(cur_dim, next_dim, 3, 1, 1),
                     nn.InstanceNorm2d(next_dim),
                     nn.PReLU(next_dim),
+                    PReLU_Conv2d(next_dim, next_dim, 3, 1, 1),
+                    nn.InstanceNorm2d(next_dim),
+                    nn.PReLU(next_dim),
+                    nn.MaxPool2d(2, 2),
                 )
             )
             cur_dim = next_dim
+            cur_size = div(cur_size)
         self.model.append(
             nn.Sequential(
-                PReLU_Conv2d(cur_dim, 1, 4, 1, 0),
+                nn.AdaptiveAvgPool2d(1),
                 nn.Flatten(),
+                PReLU_Linear(cur_dim, ffn_dim),
+                nn.PReLU(ffn_dim),
+                nn.Dropout(dropout),
+                PReLU_Linear(ffn_dim, ffn_dim),
+                nn.PReLU(ffn_dim),
+                nn.Dropout(dropout),
+                PReLU_Linear(ffn_dim, 1),
             )
         )
         self.model = nn.Sequential(*self.model)

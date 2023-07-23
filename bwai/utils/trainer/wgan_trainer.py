@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-
 from .base_trainer import BaseTrainer
 
 
@@ -19,7 +18,7 @@ class WGAN_Trainer(BaseTrainer):
         lambda_gp=10,
         critic_iter=5,
         save_step_func=None,
-        show_time_consume=False,
+        fp16=False,
         **kwargs
     ):
         self.clip_value = clip_value
@@ -29,6 +28,9 @@ class WGAN_Trainer(BaseTrainer):
         self.g_loss = torch.zeros(1)
         self.d_loss = torch.zeros(1)
         self.save_step_func = save_step_func
+        self.fp16=fp16
+        self.g_scaler = torch.cuda.amp.GradScaler(enabled=fp16)
+        self.d_scaler = torch.cuda.amp.GradScaler(enabled=fp16)
 
         if g_scheduler is None or d_scheduler is None:
             w_scheduler = None
@@ -48,6 +50,7 @@ class WGAN_Trainer(BaseTrainer):
 
     # W_distance ≈ E_{x~P_r}[D(x)] - E_{z~P_z}[D(G(z))]
     def train_step(self, packs):
+        
         if len(packs) == 2:
             real, _ = packs
         elif len(packs) == 1:
@@ -55,46 +58,53 @@ class WGAN_Trainer(BaseTrainer):
         else:
             raise ValueError("The length of packs must be 1 or 2.")
         # x, y = real.min(), real.max()
+        
         g_net, d_net = self.model["g_net"], self.model["d_net"]
         g_optimer, d_optimer = self.optimer["g_optimer"], self.optimer["d_optimer"]
         g_optimer.zero_grad()
         d_optimer.zero_grad()
         z = torch.randn(real.shape[0], g_net.z_dim, 1, 1, device=self.device)
         if self.iter_cnt % self.critic_iter == 0:
-            loss = -d_net(g_net(z)).mean()
-            loss.backward()
-            g_optimer.step()
+            with torch.cuda.amp.autocast(enabled=self.fp16):
+                loss = -d_net(g_net(z)).mean()
+            self.g_scaler.scale(loss).backward()
+            self.g_scaler.step(g_optimer)
+            self.g_scaler.update()
             self.g_loss = loss
-            return None
         else:
             if self.use_gp:
-                epsilon = (
-                    torch.FloatTensor(real.shape[0], 1, 1, 1).uniform_().to(self.device)
-                )
-                x_gen = g_net(z).detach()
-                x_interpolate = epsilon * real + (1 - epsilon) * x_gen
-                x_interpolate.requires_grad_(True)
-                critic = d_net(x_interpolate)
-                gradient = torch.autograd.grad(
-                    critic,
-                    x_interpolate,
-                    grad_outputs=torch.ones_like(critic),
-                    create_graph=True,
-                    retain_graph=True,
-                )[0]
-                gp = (gradient.view(gradient.shape[0], -1).norm(2, dim=1) - 1) ** 2
-                gp.unsqueeze_(1)
-                loss = (d_net(x_gen) - d_net(real)) + self.lambda_gp * gp
-                loss = loss.mean()
-                loss.backward()
-                d_optimer.step()
+                with torch.cuda.amp.autocast(enabled=self.fp16):
+                    epsilon = (
+                        torch.empty(real.shape[0], 1, 1, 1).uniform_().to(self.device)
+                    )
+                    x_gen = g_net(z).detach()
+                    x_interpolate = epsilon * real + (1 - epsilon) * x_gen
+                    x_interpolate.requires_grad_(True)
+                    critic = d_net(x_interpolate)
+                    gradient = torch.autograd.grad(
+                        critic,
+                        x_interpolate,
+                        grad_outputs=torch.ones_like(critic),
+                        create_graph=True,
+                        retain_graph=True,
+                    )[0]
+                    gp = (gradient.view(gradient.shape[0], -1).norm(2, dim=1) - 1) ** 2
+                    gp.unsqueeze_(1)
+                    loss = (d_net(x_gen) - d_net(real)) + self.lambda_gp * gp
+                    loss = loss.mean()
+                self.d_scaler.scale(loss).backward()
+                self.d_scaler.step(d_optimer)
+                self.d_scaler.update()
             else:
-                loss = -(d_net(real) - d_net(g_net(z).detach())).mean()
-                loss.backward()
+                with torch.cuda.amp.autocast(enabled=self.fp16):
+                    loss = -(d_net(real) - d_net(g_net(z).detach())).mean()
+                self.d_scaler.scale(loss).backward()
+                self.d_scaler.unscale_(d_optimer)
                 nn.utils.clip_grad.clip_grad_value_(
                     d_net.parameters(), self.clip_value
                 ),
-                d_optimer.step()
+                self.d_scaler.step(d_optimer)
+                self.d_scaler.update()
             self.d_loss = loss
         return {
             "G_loss": "{:.2e}".format(self.g_loss.item()),

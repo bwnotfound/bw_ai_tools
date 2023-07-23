@@ -8,7 +8,7 @@ class PReLU_Conv2d(nn.Conv2d):
     """
     def __init__(self, *args, a=0.25, **kwargs):
         super().__init__(*args, **kwargs)
-        init.prelu_normal_(self.weight, a=a)
+        init.he_normal_(self.weight, a=a)
         if self.bias is not None:
             nn.init.zeros_(self.bias)
             
@@ -19,6 +19,6 @@ class PReLU_ConvTranspose2d(nn.ConvTranspose2d):
     """
     def __init__(self, *args, a=0.25, **kwargs):
         super().__init__(*args, **kwargs)
-        init.prelu_normal_(self.weight, a=a)
+        init.he_normal_(self.weight, a=a)
         if self.bias is not None:
             nn.init.zeros_(self.bias)
