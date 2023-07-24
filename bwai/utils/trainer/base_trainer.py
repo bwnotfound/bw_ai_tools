@@ -143,6 +143,12 @@ class BaseTrainer:
         if self.scheduler is not None and save_scheduler:
             torch.save(self.scheduler.state_dict(), save_dir + "/scheduler.pth")
 
+    def load_model(self, save_dir, load_scheduler=False):
+        self.model.load_state_dict(torch.load(save_dir + "/model.pth"))
+        self.optimer.load_state_dict(torch.load(save_dir + "/optimer.pth"))
+        if self.scheduler is not None and load_scheduler:
+            self.scheduler.load_state_dict(torch.load(save_dir + "/scheduler.pth"))
+
     # def validate(self, max_iter=None, show_bar=False, show_hz=3, leave_bar=False):
     #     cnt = 1
     #     last_time = 0.0
