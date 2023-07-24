@@ -1,7 +1,7 @@
 import torch.nn as nn
 from .resnet import BaseResLayer
-from ..nn.conv import PReLU_Conv2d
-from ..nn.linear import PReLU_Linear
+from ..nn.conv import SConv2d
+from ..nn.linear import SLinear
 
 
 class D_simple(nn.Module):
@@ -26,7 +26,7 @@ class D_simple(nn.Module):
         cur_dim = filter_dim
         self.model.append(
             nn.Sequential(
-                PReLU_Conv2d(color_channels, cur_dim, 3, 2, 1),
+                SConv2d(color_channels, cur_dim, 3, 2, 1),
                 nn.BatchNorm2d(cur_dim),
             )
         )
@@ -39,7 +39,7 @@ class D_simple(nn.Module):
             next_dim = cur_dim * 2 if cur_dim < 512 else cur_dim
             self.model.append(
                 nn.Sequential(
-                    PReLU_Conv2d(cur_dim, next_dim, 5, 2, 2),
+                    SConv2d(cur_dim, next_dim, 5, 2, 2),
                     nn.BatchNorm2d(next_dim),
                     nn.PReLU(next_dim),
                 )
@@ -50,20 +50,20 @@ class D_simple(nn.Module):
             nn.Sequential(
                 nn.AdaptiveAvgPool2d(1),
                 nn.Flatten(),
-                PReLU_Linear(cur_dim, ffn_dim),
+                SLinear(cur_dim, ffn_dim),
                 nn.PReLU(ffn_dim),
                 nn.Dropout(dropout),
                 BaseResLayer(
                     [
                         nn.Identity(),
                         nn.Sequential(
-                            PReLU_Linear(ffn_dim, ffn_dim),
+                            SLinear(ffn_dim, ffn_dim),
                         ),
                     ]
                 ),
                 nn.PReLU(ffn_dim),
                 nn.Dropout(dropout),
-                PReLU_Linear(ffn_dim, 1),
+                SLinear(ffn_dim, 1),
             )
         )
         self.model = nn.Sequential(*self.model)

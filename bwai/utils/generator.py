@@ -1,7 +1,7 @@
 import torch.nn as nn
 import math
 from .resnet import BaseResLayer
-from ..nn.conv import PReLU_ConvTranspose2d, PReLU_Conv2d
+from ..nn.conv import SConvTranspose2d, SConv2d
 
 
 class G_simple(nn.Module):
@@ -21,7 +21,7 @@ class G_simple(nn.Module):
         cur_dim = min(iter_dim, 512)
         self.model.append(
             nn.Sequential(
-                PReLU_ConvTranspose2d(z_dim, cur_dim, 4, 1, 0, bias=False),
+                SConvTranspose2d(z_dim, cur_dim, 4, 1, 0, bias=False),
                 nn.BatchNorm2d(cur_dim),
                 nn.PReLU(cur_dim),
             )
@@ -31,21 +31,23 @@ class G_simple(nn.Module):
             next_dim = cur_dim // 2 if iter_dim == cur_dim else cur_dim
             self.model.append(
                 nn.Sequential(
-                    PReLU_ConvTranspose2d(cur_dim, next_dim, 4, 2, 1, bias=False),
+                    SConvTranspose2d(cur_dim, next_dim, 4, 2, 1, bias=False),
                     nn.BatchNorm2d(next_dim),
                     nn.PReLU(next_dim),
                 )
             )
             iter_dim = iter_dim // 2
             cur_dim = next_dim
-        self.model.append(PReLU_Conv2d(filter_dim, color_channels, 3, 1, 1, bias=False))
-        
+        self.model.append(SConv2d(filter_dim, color_channels, 3, 1, 1, bias=False))
+
         class Wrap(nn.Module):
             def __init__(self):
                 super().__init__()
-                self.tanh=nn.Tanh()
+                self.tanh = nn.Tanh()
+
             def forward(self, x):
                 return (self.tanh(x) + 1) / 2
+
         # self.model.append(nn.Sigmoid())
         self.model.append(Wrap())
 
