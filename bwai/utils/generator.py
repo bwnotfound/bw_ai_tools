@@ -48,8 +48,8 @@ class G_simple(nn.Module):
             def forward(self, x):
                 return (self.tanh(x) + 1) / 2
 
-        # self.model.append(nn.Sigmoid())
-        self.model.append(Wrap())
+        self.model.append(nn.Sigmoid())
+        # self.model.append(Wrap())
 
         self.model = nn.Sequential(*self.model)
 

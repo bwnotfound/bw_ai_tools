@@ -22,8 +22,8 @@ class VAE_Trainer(BaseTrainer):
             raise ValueError("The length of packs must be 1 or 2.")
         self.optimer.zero_grad()
         with torch.cuda.amp.autocast(enabled=self.fp16):
-            x_pred, mean, log_var = self.model(imgs)
-            loss = self.model.loss_func(imgs, x_pred, mean, log_var)
+            packs = self.model(imgs)
+            loss = self.model.loss_func(imgs, packs)
         self.scaler.scale(loss).backward()
         self.scaler.step(self.optimer)
         self.scaler.update()

@@ -28,6 +28,7 @@ class D_simple(nn.Module):
             nn.Sequential(
                 SConv2d(color_channels, cur_dim, 3, 2, 1),
                 nn.BatchNorm2d(cur_dim),
+                nn.PReLU(cur_dim),
             )
         )
 
@@ -51,16 +52,6 @@ class D_simple(nn.Module):
                 nn.AdaptiveAvgPool2d(1),
                 nn.Flatten(),
                 SLinear(cur_dim, ffn_dim),
-                nn.PReLU(ffn_dim),
-                nn.Dropout(dropout),
-                BaseResLayer(
-                    [
-                        nn.Identity(),
-                        nn.Sequential(
-                            SLinear(ffn_dim, ffn_dim),
-                        ),
-                    ]
-                ),
                 nn.PReLU(ffn_dim),
                 nn.Dropout(dropout),
                 SLinear(ffn_dim, 1),
