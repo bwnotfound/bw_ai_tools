@@ -15,6 +15,7 @@ class BaseTrainer:
         scheduler=None,
         loss_func=None,
         eval_func=None,
+        save_step_func=None,
     ):
         super(BaseTrainer, self).__init__()
         self.model = model
@@ -37,6 +38,7 @@ class BaseTrainer:
         self.scheduler = scheduler
         self.test_loader = test_loader
         self.eval_func = eval_func
+        self.save_step_func = save_step_func
         self.iter_cnt = 1
         self.last_show_result = None
 
@@ -101,9 +103,11 @@ class BaseTrainer:
         loss = self.loss_func(output, label)
         loss.backward()
         self.optimer.step()
+        result = {"Loss": "{:.2e}".format(loss.item())}
         if self.eval_func is not None:
             acc = self.eval_func(output, label)
-        return {"Loss": "{:.2e}".format(loss.item()), "Accuracy": "{:.6}".format(acc)}
+            result["Accuracy"] = "{:.6}".format(acc)
+        return result
     
 
     def show_result(self, t_bar, result, show_scheduler=False):
@@ -123,7 +127,8 @@ class BaseTrainer:
         pass
     
     def save_step(self):
-        pass
+        if self.save_step_func is not None:
+            self.save_step_func()
 
     def data_preprocess(self, packs):
         data, label = packs

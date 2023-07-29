@@ -4,10 +4,9 @@ from .base_trainer import BaseTrainer
 
 
 class VAE_Trainer(BaseTrainer):
-    def __init__(self, model, optimer, save_step_func=None, fp16=False, **kwargs):
+    def __init__(self, model, optimer, fp16=False, **kwargs):
         self.model = model
         self.optimer = optimer
-        self.save_step_func = save_step_func
         self.fp16 = fp16
         self.scaler = torch.cuda.amp.GradScaler(enabled=fp16)
 
@@ -28,7 +27,3 @@ class VAE_Trainer(BaseTrainer):
         self.scaler.step(self.optimer)
         self.scaler.update()
         return {"Loss": "{:.2e}".format(loss.item())}
-
-    def save_step(self):
-        if self.save_step_func is not None:
-            self.save_step_func()

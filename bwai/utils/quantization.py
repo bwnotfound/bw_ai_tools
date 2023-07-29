@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from bwai.tools.time import TestTime
 
 
 class VectorQuantization(nn.Module):
@@ -68,6 +67,7 @@ class VectorQuantizer(nn.Module):
     r"""
         Vector Quantization(VQ) Module with feature of Product quantization(PQ).
         It's test that PQ can improve the performance of VQ enormously.
+        It's test that use asynic has negative effect on performance.
     """
     
     def __init__(self, dim, num_heads, codebook_size):

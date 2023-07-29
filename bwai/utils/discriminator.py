@@ -17,6 +17,7 @@ class D_simple(nn.Module):
         min_size=5,
         ffn_dim=512,
         dropout=0.1,
+        use_bn=True,
     ):
         super().__init__()
         self.img_size = img_size
@@ -24,10 +25,14 @@ class D_simple(nn.Module):
         self.filter_dim = filter_dim
         self.model = nn.ModuleList()
         cur_dim = filter_dim
+        if use_bn:
+            norm = nn.BatchNorm2d
+        else:
+            norm = nn.InstanceNorm2d
         self.model.append(
             nn.Sequential(
-                SConv2d(color_channels, cur_dim, 3, 2, 1),
-                nn.BatchNorm2d(cur_dim),
+                SConv2d(color_channels, cur_dim, 3, 2, 1, bias=False),
+                norm(cur_dim),
                 nn.PReLU(cur_dim),
             )
         )
@@ -40,8 +45,8 @@ class D_simple(nn.Module):
             next_dim = cur_dim * 2 if cur_dim < 512 else cur_dim
             self.model.append(
                 nn.Sequential(
-                    SConv2d(cur_dim, next_dim, 5, 2, 2),
-                    nn.BatchNorm2d(next_dim),
+                    SConv2d(cur_dim, next_dim, 5, 2, 2, bias=False),
+                    norm(next_dim),
                     nn.PReLU(next_dim),
                 )
             )

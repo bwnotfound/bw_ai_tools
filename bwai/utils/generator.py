@@ -9,7 +9,14 @@ class G_simple(nn.Module):
     img_size: 2**(depthModel + 2)
     """
 
-    def __init__(self, img_size, z_dim, filter_dim, color_channels):
+    def __init__(
+        self,
+        img_size,
+        z_dim,
+        filter_dim,
+        color_channels,
+        use_bn=True,
+    ):
         super().__init__()
         assert math.log2(img_size) - int(math.log2(img_size)) == 0
         self.color_channels = color_channels
@@ -19,10 +26,14 @@ class G_simple(nn.Module):
         num_layers = int(math.log2(img_size)) - 2
         iter_dim = filter_dim * 2**num_layers
         cur_dim = min(iter_dim, 512)
+        if use_bn:
+            norm = nn.BatchNorm2d
+        else:
+            norm = nn.InstanceNorm2d
         self.model.append(
             nn.Sequential(
                 SConvTranspose2d(z_dim, cur_dim, 4, 1, 0, bias=False),
-                nn.BatchNorm2d(cur_dim),
+                norm(cur_dim),
                 nn.PReLU(cur_dim),
             )
         )
@@ -32,7 +43,7 @@ class G_simple(nn.Module):
             self.model.append(
                 nn.Sequential(
                     SConvTranspose2d(cur_dim, next_dim, 4, 2, 1, bias=False),
-                    nn.BatchNorm2d(next_dim),
+                    norm(next_dim),
                     nn.PReLU(next_dim),
                 )
             )

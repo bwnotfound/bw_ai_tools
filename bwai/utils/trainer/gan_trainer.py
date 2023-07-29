@@ -1,5 +1,7 @@
 import torch
 import torch.nn as nn
+from torch.nn.utils.parametrizations import spectral_norm
+
 from .base_trainer import BaseTrainer
 
 
@@ -15,19 +17,27 @@ class WGAN_Trainer(BaseTrainer):
         d_scheduler=None,
         clip_value=0.1,
         use_gp=True,
+        use_wc=False,
+        use_sn=False,   # {gp: "gradient penalty", wc: "weight clipping", sn: "spectral normalization", None: "nothing"}
         lambda_gp=10,
         critic_iter=5,
-        save_step_func=None,
         fp16=False,
         **kwargs
     ):
         self.clip_value = clip_value
         self.use_gp = use_gp
+        self.use_clip = use_wc
+        if use_sn:
+            def init_weights(m):
+                if isinstance(m, (nn.Linear, nn.Conv2d, nn.ConvTranspose2d)):
+                    spectral_norm(m)
+            g_net.apply(init_weights)
+            d_net.apply(init_weights)
+        
         self.critic_iter = critic_iter
         self.lambda_gp = lambda_gp
         self.g_loss = torch.zeros(1)
         self.d_loss = torch.zeros(1)
-        self.save_step_func = save_step_func
         self.fp16=fp16
         self.g_scaler = torch.cuda.amp.GradScaler(enabled=fp16)
         self.d_scaler = torch.cuda.amp.GradScaler(enabled=fp16)
@@ -93,16 +103,22 @@ class WGAN_Trainer(BaseTrainer):
                     loss = (d_net(x_gen) - d_net(real)) + self.lambda_gp * gp
                     loss = loss.mean()
                 self.d_scaler.scale(loss).backward()
+                if self.use_clip:
+                    self.d_scaler.unscale_(d_optimer)
+                    nn.utils.clip_grad.clip_grad_value_(
+                        d_net.parameters(), self.clip_value
+                    ),
                 self.d_scaler.step(d_optimer)
                 self.d_scaler.update()
             else:
                 with torch.cuda.amp.autocast(enabled=self.fp16):
                     loss = -(d_net(real) - d_net(g_net(z).detach())).mean()
                 self.d_scaler.scale(loss).backward()
-                self.d_scaler.unscale_(d_optimer)
-                nn.utils.clip_grad.clip_grad_value_(
-                    d_net.parameters(), self.clip_value
-                ),
+                if self.use_clip:
+                    self.d_scaler.unscale_(d_optimer)
+                    nn.utils.clip_grad.clip_grad_value_(
+                        d_net.parameters(), self.clip_value
+                    ),
                 self.d_scaler.step(d_optimer)
                 self.d_scaler.update()
             self.d_loss = loss
@@ -125,10 +141,6 @@ class WGAN_Trainer(BaseTrainer):
                 {k: v.state_dict() for k, v in self.scheduler.items()},
                 save_dir + "/scheduler.pth",
             )
-            
-    def save_step(self):
-        if self.save_step_func is not None:
-            self.save_step_func()
 
     def load_model(self, save_dir, load_scheduler=False):
         model = torch.load(save_dir + "/model.pth")

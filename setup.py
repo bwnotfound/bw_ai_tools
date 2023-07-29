@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 setup(
     name='bwai',
     author='bw',
-    version='0.0.2',
+    version='0.0.3',
     description='Tools created by bw',
     license='MIT License',
     packages=find_packages(),
